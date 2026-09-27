@@ -18,6 +18,7 @@
       --warning-text: #a16207;
       --accent-bg: #dbeafe;
       --accent-text: #1e40af;
+      --highlight-bg: #e0f2fe; /* Distinct color for selected row */
     }
 
     * {
@@ -62,7 +63,6 @@
       font-weight: 600;
     }
 
-    /* Upload Action Card */
     .action-card {
       background: var(--card-bg);
       padding: 12px 16px;
@@ -74,21 +74,6 @@
       gap: 16px;
       flex-wrap: wrap;
       font-size: 0.85rem;
-    }
-
-    .file-input-wrapper {
-      position: relative;
-      overflow: hidden;
-      display: inline-block;
-    }
-
-    .file-input-wrapper input[type=file] {
-      font-size: 100px;
-      position: absolute;
-      left: 0;
-      top: 0;
-      opacity: 0;
-      cursor: pointer;
     }
 
     .btn {
@@ -103,13 +88,13 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
+      text-decoration: none;
     }
 
     .btn:hover {
       opacity: 0.9;
     }
 
-    /* KPI Cards Layout (Compact) */
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -140,7 +125,6 @@
       color: var(--text-main);
     }
 
-    /* Controls Header */
     .controls-card {
       background: var(--card-bg);
       padding: 10px 14px;
@@ -167,11 +151,6 @@
       min-width: 220px;
     }
 
-    .search-box:focus, .filter-select:focus {
-      border-color: var(--primary);
-    }
-
-    /* Compact Table Styling */
     .table-container {
       background: var(--card-bg);
       border-radius: 0 0 8px 8px;
@@ -213,8 +192,18 @@
       white-space: nowrap;
     }
 
+    tr {
+      cursor: pointer;
+      transition: background-color 0.1s ease;
+    }
+
     tr:hover {
       background-color: #f8fafc;
+    }
+
+    tr.selected-row {
+      background-color: var(--highlight-bg) !important;
+      font-weight: 500;
     }
 
     .rating-badge {
@@ -245,13 +234,14 @@
       <div id="statusBadge" class="status-badge">Waiting for CSV Upload</div>
     </header>
 
-    <!-- Upload Action Card -->
+    <!-- Action Card -->
     <div class="action-card">
-      <div class="file-input-wrapper">
-        <button class="btn">📁 Select & Upload Updated CSV</button>
-        <input type="file" id="csvFileInput" accept=".csv" />
-      </div>
-      <span class="text-muted" style="font-size: 0.8rem;">Upload your exported Google Sheet CSV whenever you update your stock data.</span>
+      <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vSaDtHS-8-lVtWY2J7qO5b2-YurI6x4jGjyyeLx4IC4inj_JehMFHY5SETO7b2-ehbsbt3OTmEaR-Cy/pub?gid=1098099968&single=true&output=csv" class="btn" target="_blank">📥 Download Latest CSV from Sheet</a>
+      
+      <div style="border-left: 1px solid var(--border-color); height: 24px; margin: 0 4px;"></div>
+
+      <label for="csvFileInput" style="font-weight:600; cursor:pointer;">📁 Upload Updated CSV:</label>
+      <input type="file" id="csvFileInput" accept=".csv" style="font-size: 0.8rem;" />
     </div>
 
     <!-- KPI Summary Cards -->
@@ -350,7 +340,7 @@
           symbol: cols[1] || 'N/A',
           name: cols[2] || 'N/A',
           ltp: cleanNumber(cols[6]),
-          diff52: cols[13] || '0',
+          awayFromLow: cols[7] || '0',  // Mapped to 'Away From 52 WLow' column
           myInvest: cleanNumber(cols[10]),
           low52: cleanNumber(cols[12]),
           targetPrice: cleanNumber(cols[14]),
@@ -407,13 +397,23 @@
           <td>${stock.name}</td>
           <td>₹ ${stock.ltp.toLocaleString('en-IN')}</td>
           <td>₹ ${stock.low52.toLocaleString('en-IN')}</td>
-          <td>${stock.diff52}</td>
+          <td>${stock.awayFromLow}</td>
           <td>₹ ${stock.targetPrice.toLocaleString('en-IN')}</td>
           <td class="text-green">${stock.targetPctRaw}</td>
           <td>₹ ${stock.myInvest.toLocaleString('en-IN')}</td>
           <td><span class="rating-badge ${ratingClass}">${stock.rating}</span></td>
           <td class="text-muted">${stock.date}</td>
         `;
+
+        // Click event to toggle row identification highlight
+        tr.addEventListener('click', function() {
+          const previouslySelected = tbody.querySelector('tr.selected-row');
+          if (previouslySelected && previouslySelected !== tr) {
+            previouslySelected.classList.remove('selected-row');
+          }
+          tr.classList.toggle('selected-row');
+        });
+
         tbody.appendChild(tr);
       });
     }
@@ -436,7 +436,7 @@
 
     let sortAsc = false;
     function sortTable(colIdx) {
-      const keys = ['sr', 'symbol', 'name', 'ltp', 'low52', 'diff52', 'targetPrice', 'targetPct', 'myInvest', 'rating', 'date'];
+      const keys = ['sr', 'symbol', 'name', 'ltp', 'low52', 'awayFromLow', 'targetPrice', 'targetPct', 'myInvest', 'rating', 'date'];
       const key = keys[colIdx];
       sortAsc = !sortAsc;
 
