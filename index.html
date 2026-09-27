@@ -57,23 +57,41 @@
       font-size: 0.8rem;
       padding: 4px 10px;
       border-radius: 9999px;
-      background-color: var(--success-bg);
-      color: var(--success-text);
+      background-color: var(--warning-bg);
+      color: var(--warning-text);
       font-weight: 600;
     }
 
-    /* Import Section */
-    .import-card {
+    /* Action Card */
+    .action-card {
       background: var(--card-bg);
-      padding: 10px 14px;
+      padding: 12px 16px;
       border-radius: 8px;
       border: 1px solid var(--border-color);
       margin-bottom: 12px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 16px;
       flex-wrap: wrap;
       font-size: 0.85rem;
+    }
+
+    .btn {
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
     }
 
     /* KPI Cards Layout (Compact) */
@@ -207,16 +225,17 @@
     <header>
       <div>
         <h1>PL Capital Stock Dashboard</h1>
-        <p class="text-muted" style="font-size: 0.78rem; margin-top: 2px;">Live Google Sheet Sync (Compact View)</p>
+        <p class="text-muted" style="font-size: 0.78rem; margin-top: 2px;">Compact Portfolio View</p>
       </div>
-      <div id="statusBadge" class="status-badge">Connecting...</div>
+      <div id="statusBadge" class="status-badge">Waiting for Action</div>
     </header>
 
-    <!-- Optional Offline File Loader -->
-    <div class="import-card">
-      <label for="csvFileInput" style="font-weight:600;">Fallback CSV Load:</label>
+    <!-- Action Card with Direct Download & Upload Options -->
+    <div class="action-card">
+      <button class="btn" onclick="downloadSheetCSV()">📥 Download Sheet CSV & Load</button>
+      <div style="border-left: 1px solid var(--border-color); height: 24px; margin: 0 4px;"></div>
+      <label for="csvFileInput" style="font-weight:600; cursor:pointer;">📁 Or Upload Saved CSV:</label>
       <input type="file" id="csvFileInput" accept=".csv" style="font-size: 0.8rem;" />
-      <button onclick="fetchLiveSheetData()" style="padding: 4px 10px; font-size: 0.8rem; cursor:pointer; background:var(--primary); color:#fff; border:none; border-radius:4px;">Retry Live Sync</button>
     </div>
 
     <!-- KPI Summary Cards -->
@@ -278,6 +297,53 @@
 
     let currentStocks = [];
 
+    async function downloadSheetCSV() {
+      const badge = document.getElementById('statusBadge');
+      badge.innerText = 'Downloading CSV...';
+      badge.style.backgroundColor = '#fef9c3';
+      badge.style.color = '#a16207';
+
+      const proxies = [
+        'https://api.allorigins.win/raw?url=',
+        'https://api.codetabs.com/v1/proxy?quest='
+      ];
+
+      let csvText = '';
+      for (let proxy of proxies) {
+        try {
+          const res = await fetch(proxy + encodeURIComponent(SHEET_CSV_URL));
+          if (!res.ok) continue;
+          csvText = await res.text();
+          if (csvText && csvText.length > 50) break;
+        } catch (e) {
+          console.warn('Proxy error:', e);
+        }
+      }
+
+      if (!csvText) {
+        badge.innerText = 'Download Failed. Use file upload.';
+        badge.style.backgroundColor = '#fee2e2';
+        badge.style.color = '#991b1b';
+        return;
+      }
+
+      const blob = new Blob([csvText], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'pl_capital_data.csv';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      currentStocks = parseCSVData(csvText);
+      badge.innerText = 'CSV Downloaded & Loaded!';
+      badge.style.backgroundColor = '#dcfce7';
+      badge.style.color = '#15803d';
+      calculateKPIs(currentStocks);
+      renderTable(currentStocks);
+    }
+
     function parseCSVLine(text) {
       let result = [];
       let cur = '';
@@ -330,42 +396,6 @@
       return parsed;
     }
 
-    async function fetchLiveSheetData() {
-      const badge = document.getElementById('statusBadge');
-      badge.innerText = 'Connecting...';
-      badge.style.backgroundColor = '#fef9c3';
-      badge.style.color = '#a16207';
-
-      const proxies = [
-        'https://api.allorigins.win/raw?url=',
-        'https://api.codetabs.com/v1/proxy?quest='
-      ];
-
-      for (let proxy of proxies) {
-        try {
-          const res = await fetch(proxy + encodeURIComponent(SHEET_CSV_URL));
-          if (!res.ok) continue;
-          const csvText = await res.text();
-          currentStocks = parseCSVData(csvText);
-
-          if (currentStocks.length > 0) {
-            badge.innerText = 'Connected Live';
-            badge.style.backgroundColor = '#dcfce7';
-            badge.style.color = '#15803d';
-            calculateKPIs(currentStocks);
-            renderTable(currentStocks);
-            return;
-          }
-        } catch (e) {
-          console.warn('Proxy fetch failed:', proxy, e);
-        }
-      }
-
-      badge.innerText = 'Live fetch failed (Use GitHub / Server)';
-      badge.style.backgroundColor = '#fee2e2';
-      badge.style.color = '#991b1b';
-    }
-
     document.getElementById('csvFileInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
@@ -374,7 +404,7 @@
       reader.onload = function(evt) {
         currentStocks = parseCSVData(evt.target.result);
         const badge = document.getElementById('statusBadge');
-        badge.innerText = 'Loaded Local File';
+        badge.innerText = 'Loaded Saved CSV File';
         badge.style.backgroundColor = '#dcfce7';
         badge.style.color = '#15803d';
         calculateKPIs(currentStocks);
@@ -451,8 +481,6 @@
 
       renderTable(currentStocks);
     }
-
-    fetchLiveSheetData();
   </script>
 </body>
 </html>
